@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="max-w-md mx-auto">
+        <div class="card animate-slide-up">
+            <div class="text-center mb-8">
+                <div class="text-6xl mb-4">⚡</div>
+                <h1>Create New Game</h1>
+            </div>
+            
+            <form method="post" class="space-y-6">
+                <div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" name="invite_only" class="w-5 h-5 text-primary border-border rounded focus:ring-primary focus:ring-2">
+                        <span class="font-semibold">🔒 Private Game</span>
+                    </label>
+                </div>
+                
+                <div class="flex gap-4">
+                    <button type="submit" class="btn btn-success flex-1">
+                        🚀 Create Game Room
+                    </button>
+                    <a href="{{ url_for('lobby') }}" class="btn btn-secondary flex-1 text-center">
+                        ← Back to Lobby
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.w-5 { width: 1.25rem; }
+.h-5 { height: 1.25rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+</style>
+{% endblock %} 

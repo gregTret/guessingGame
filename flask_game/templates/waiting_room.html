@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="max-w-6xl mx-auto">
+        <!-- Top Row: Game Info + Controls -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <!-- Game Info -->
+            <div class="card text-center animate-slide-up">
+                <div class="text-6xl mb-4">⏳</div>
+                <h1 class="mb-2">Game #{{ game.id }}</h1>
+                <p class="text-text-secondary mb-4">
+                    Host: <span class="text-primary font-semibold">{{ game.host.name }}</span>
+                </p>
+                
+                <div class="flex items-center justify-center gap-3 mb-6">
+                    <div class="w-3 h-3 bg-warning rounded-full animate-pulse"></div>
+                    <span class="text-warning font-semibold">Waiting</span>
+                </div>
+                
+                <div class="w-full bg-bg-tertiary rounded-full h-3 mb-4">
+                    <div 
+                        id="progress-bar"
+                        class="bg-gradient-to-r from-primary to-secondary h-3 rounded-full transition-all duration-500"
+                        data-players="{{ players|length }}"
+                        data-max="{{ game.max_players }}"
+                    ></div>
+                </div>
+                <div class="text-sm text-text-secondary">
+                    {{ players|length }}/{{ game.max_players }} players
+                </div>
+                
+                <div class="mt-6">
+                    <a href="{{ url_for('lobby') }}" class="btn btn-secondary w-full">
+                        ← Leave
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Invite -->
+            {% if invite_link %}
+            <div class="card animate-slide-up" style="animation-delay: 0.4s">
+                <h2 class="text-2xl mb-6">🔗 Invite Players</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Share Link</label>
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                value="{{ invite_link }}" 
+                                readonly 
+                                id="invite-link"
+                                class="flex-1 px-4 py-3 bg-bg-tertiary border border-border rounded text-sm font-mono"
+                            >
+                            <button 
+                                onclick="copyInviteLink()" 
+                                class="btn btn-secondary px-4 py-3"
+                            >
+                                📋
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center p-4 bg-bg-tertiary rounded-lg">
+                        <div class="text-4xl font-bold text-primary mb-2">{{ invite.invite_code }}</div>
+                        <div class="text-sm text-text-secondary">Invite Code</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Host Controls -->
+            {% if is_host %}
+            <div class="card animate-slide-up" style="animation-delay: 0.8s">
+                <h2 class="text-2xl mb-6">🎮 Host Controls</h2>
+                
+                <div class="space-y-4">
+                    <button 
+                        onclick="startGame()"
+                        class="btn btn-success w-full text-xl py-4"
+                    >
+                        🚀 Start Game Now
+                    </button>
+                    
+                    <div class="text-sm text-text-secondary text-center">
+                        You can start with any number of players
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Bottom Row: Players (Full Width) -->
+        <div class="card animate-slide-up" style="animation-delay: 0.2s">
+            <h2 class="text-2xl mb-6">👥 Players in Game</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {% for gp in players %}
+                <div class="flex items-center gap-4 p-6 bg-bg-tertiary rounded-lg transition-all hover:bg-bg-secondary border-2 border-transparent hover:border-primary">
+                    <div class="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-white font-bold text-xl">
+                        {{ gp.player.name[0]|upper }}
+                    </div>
+                    
+                    <div class="flex-1">
+                        <div class="font-semibold text-lg flex items-center gap-2 mb-1">
+                            {{ gp.player.name }}
+                            {% if gp.player.id == game.host_player_id %}
+                            <span class="px-2 py-1 bg-primary text-white text-xs rounded-full">HOST</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-sm text-text-secondary">
+                            {% if gp.player.total_wins + gp.player.total_losses > 0 %}
+                            {{ gp.player.total_wins }}W / {{ gp.player.total_losses }}L
+                            {% else %}
+                            New Player
+                            {% endif %}
+                        </div>
+                        
+                        {% if is_host and gp.player.id != player.id %}
+                        <div class="mt-2">
+                            <a href="{{ url_for('kick_player', game_id=game.id, player_id=gp.player.id) }}" 
+                               class="btn btn-error px-3 py-1 text-sm">
+                                🚫 Kick
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                
+                {% for i in range(game.max_players - players|length) %}
+                <div class="flex items-center gap-4 p-6 border-2 border-dashed border-border rounded-lg">
+                    <div class="w-16 h-16 bg-bg-card border-2 border-dashed border-border rounded-full flex items-center justify-center text-text-muted text-xl">
+                        ?
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-text-muted text-lg">Empty slot</div>
+                        <div class="text-sm text-text-secondary">Waiting for player...</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyInviteLink() {
+    const linkField = document.getElementById('invite-link');
+    linkField.select();
+    linkField.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+}
+
+function startGame() {
+    window.location.href = "{{ url_for('start_game', game_id=game.id) }}";
+}
+
+// Set progress bar width on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const progressBar = document.getElementById('progress-bar');
+    if (progressBar) {
+        const players = parseInt(progressBar.dataset.players);
+        const max = parseInt(progressBar.dataset.max);
+        const percentage = Math.round((players / max) * 100);
+        progressBar.style.width = percentage + '%';
+    }
+});
+
+// Auto-refresh waiting room every 5 seconds to check for game start and new players
+setInterval(() => {
+    window.location.reload();
+}, 5000);
+</script>
+{% endblock %} 

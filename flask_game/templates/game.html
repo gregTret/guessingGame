@@ -1,0 +1,799 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    /* Color Palette */
+    .color-tile {
+        width: 80px;
+        height: 80px;
+        border-radius: var(--radius-lg);
+        border: 3px solid transparent;
+        cursor: grab;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+    
+    .color-tile:active {
+        cursor: grabbing;
+        transform: scale(1.1);
+        z-index: 1000;
+    }
+    
+    .color-tile:hover {
+        transform: translateY(-4px) scale(1.05);
+        box-shadow: var(--shadow-xl);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* Color definitions */
+    .color-black { background: linear-gradient(135deg, #1a1a1a, #000000); }
+    .color-white { background: linear-gradient(135deg, #ffffff, #f0f0f0); }
+    .color-yellow { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+    .color-red { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .color-green { background: linear-gradient(135deg, #10b981, #059669); }
+    .color-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .color-pink { background: linear-gradient(135deg, #ec4899, #db2777); }
+    
+    /* Drop zones */
+    .drop-zone {
+        width: 100px;
+        height: 100px;
+        border: 3px dashed var(--border);
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        transition: all 0.3s ease;
+        background: var(--bg-card);
+        backdrop-filter: var(--blur);
+    }
+    
+    .drop-zone.drag-over {
+        border-color: var(--primary);
+        background: rgba(99, 102, 241, 0.1);
+        transform: scale(1.05);
+    }
+    
+    .drop-zone.filled {
+        border-style: solid;
+        border-color: var(--primary);
+    }
+    
+    .drop-zone::before {
+        content: attr(data-position);
+        position: absolute;
+        top: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    /* Guess history */
+    .guess-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .guess-row:hover {
+        border-color: var(--border-hover);
+        transform: translateX(4px);
+        background: var(--bg-glass);
+    }
+    
+    .guess-colors {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .guess-color {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        border: 2px solid var(--border);
+    }
+    
+    .feedback {
+        display: flex;
+        gap: 1rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
+    }
+    
+    .feedback-correct {
+        color: var(--success);
+    }
+    
+    .feedback-partial {
+        color: var(--warning);
+    }
+    
+    /* Game stats */
+    .game-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        border-color: var(--border-hover);
+        transform: translateY(-2px);
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary);
+        display: block;
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+    
+    /* Pulse animation for active state */
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    /* Responsive grid */
+    .game-board {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 2rem;
+        align-items: start;
+    }
+    
+    @media (max-width: 1024px) {
+        .game-board {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+    }
+    
+    /* Mobile responsive design */
+    @media (max-width: 640px) {
+        .game-board {
+            gap: 1rem;
+        }
+        
+        .game-stats {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        
+        .stat-card {
+            padding: 1rem;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+        }
+        
+        .color-tile {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .drop-zone {
+            width: 70px;
+            height: 70px;
+        }
+        
+        #drop-zones {
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        #color-palette {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+        
+        .guess-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.75rem;
+        }
+        
+        .guess-colors {
+            order: -1;
+            align-self: center;
+        }
+        
+        .guess-color {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .feedback {
+            align-self: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .submit-guess {
+            font-size: 1rem;
+            padding: 0.875rem 1.5rem;
+        }
+        
+        /* Touch-friendly buttons on mobile */
+        .btn {
+            min-height: 44px;
+            padding: 0.75rem 1rem;
+        }
+        
+        #undo-btn {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+            min-height: 36px;
+        }
+    }
+    
+    /* Submit button styling */
+    .submit-guess {
+        width: 100%;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 1rem;
+        background: linear-gradient(135deg, var(--success), #059669);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .submit-guess:disabled {
+        background: var(--bg-tertiary);
+        color: var(--text-muted);
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .submit-guess:disabled:hover {
+        transform: none;
+        box-shadow: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="game-stats animate-slide-up">
+        <div class="stat-card">
+            <span class="stat-value">{{ game_player.guess_count }}</span>
+            <div class="stat-label">Guesses</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ remaining_time }}</span>
+            <div class="stat-label">Time</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ active_players }}</span>
+            <div class="stat-label">Players</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ game.id }}</span>
+            <div class="stat-label">Game</div>
+        </div>
+    </div>
+
+    <div class="game-board">
+        <!-- Main Game Area -->
+        <div class="card animate-slide-up">
+            <h1>🎯 Crack the Pattern</h1>
+            
+            {% if not spectate_mode and game_player.status == 'playing' %}
+            <!-- Current Guess Builder -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3>Your Guess</h3>
+                    <button id="undo-btn" class="btn btn-secondary px-3 py-2 text-sm" disabled>
+                        ↶ Undo
+                    </button>
+                </div>
+                <form id="guess-form" action="{{ url_for('make_guess', game_id=game.id) }}" method="post">
+                    <div class="flex gap-4 justify-center mb-6" id="drop-zones">
+                        {% for i in range(5) %}
+                        <div class="drop-zone" data-position="{{ i + 1 }}" data-index="{{ i }}">
+                            <input type="hidden" name="color_{{ i }}" id="color_{{ i }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="submit" class="btn submit-guess" id="submit-btn" disabled>
+                        🚀 Submit Guess
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <!-- Spectator Mode -->
+            <div class="mb-8 text-center">
+                <div class="card bg-bg-tertiary border-2 border-primary">
+                    <div class="text-4xl mb-2">👀</div>
+                    <h3 class="text-primary">Spectating Game</h3>
+                    <p class="text-text-secondary">Watching other players compete</p>
+                    <div class="mt-4">
+                        <a href="{{ url_for('lobby') }}" class="btn btn-secondary">
+                            ← Back to Lobby
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Previous Guesses -->
+            {% if guesses %}
+            <div class="mb-6">
+                <h3 class="mb-4">History</h3>
+                <div>
+                    {% for guess in guesses %}
+                    <div class="guess-row animate-fade-in cursor-pointer" 
+                         onclick="fillGuessFromHistory('{{ guess.guess_pattern }}')"
+                         title="Click to use">
+                        <div class="text-text-muted font-mono">#{{ guess.guess_number }}</div>
+                        <div class="guess-colors">
+                            {% for color in guess.guess_pattern.split(',') %}
+                            <div class="guess-color color-{{ color.lower() }}" title="{{ color }}"></div>
+                            {% endfor %}
+                        </div>
+                        <div class="feedback">
+                            <span class="feedback-correct">✓ {{ guess.correct_positions }}</span>
+                            <span class="feedback-partial">○ {{ guess.correct_colors }}</span>
+                        </div>
+                        <div class="text-text-muted text-sm">{{ guess.timestamp.strftime('%H:%M:%S') }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if not spectate_mode and game_player.status == 'playing' %}
+        <!-- Color Palette Sidebar -->
+        <div class="card animate-slide-up">
+            <h3 class="mb-4">🎨 Colors</h3>
+            <div class="grid grid-cols-2 gap-3" id="color-palette">
+                {% for color in ['Black', 'White', 'Yellow', 'Red', 'Green', 'Blue', 'Pink'] %}
+                <div class="color-tile color-{{ color.lower() }}" 
+                     draggable="true" 
+                     data-color="{{ color }}"
+                     title="{{ color }}">
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="mt-6 p-4 bg-bg-tertiary rounded-lg">
+                <ul class="text-sm text-text-secondary space-y-1">
+                    <li>✓ = Correct position</li>
+                    <li>○ = Wrong position</li>
+                </ul>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{{ url_for('forfeit_game', game_id=game.id) }}" class="btn btn-error w-full">
+                    🏃‍♂️ Forfeit
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <!-- Spectator Info Sidebar -->
+        <div class="card animate-slide-up">
+            <h3 class="mb-4">🎮 Game Info</h3>
+            
+            <div class="space-y-4">
+                <div class="p-3 bg-bg-tertiary rounded-lg">
+                    <div class="text-sm text-text-secondary">Legend</div>
+                    <ul class="text-sm text-text-secondary space-y-1 mt-2">
+                        <li>✓ = Correct position</li>
+                        <li>○ = Wrong position</li>
+                    </ul>
+                </div>
+                
+                <div class="p-3 bg-bg-tertiary rounded-lg">
+                    <div class="text-sm text-text-secondary">Your Status</div>
+                    <div class="text-lg font-semibold mt-1">
+                        {% if game_player.status == 'solved' %}
+                            {% if game.winner_id == game_player.player_id %}
+                                🏆 Winner
+                            {% else %}
+                                ✅ Solved
+                            {% endif %}
+                        {% elif game_player.status == 'forfeited' %}
+                            ⏰ Forfeited
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ColorGuessingGame {
+    constructor() {
+        this.dropZones = document.querySelectorAll('.drop-zone');
+        this.colorTiles = document.querySelectorAll('.color-tile');
+        this.submitBtn = document.getElementById('submit-btn');
+        this.undoBtn = document.getElementById('undo-btn');
+        this.form = document.getElementById('guess-form');
+        
+        // Undo system
+        this.stateHistory = [];
+        this.maxHistorySize = 10;
+        
+        this.initDragAndDrop();
+        this.initUndo();
+        this.initCountdown();
+        this.saveState(); // Save initial empty state
+        this.updateSubmitButton();
+    }
+    
+    initDragAndDrop() {
+        // Color tiles drag events
+        this.colorTiles.forEach(tile => {
+            tile.addEventListener('dragstart', this.handleDragStart.bind(this));
+            tile.addEventListener('dragend', this.handleDragEnd.bind(this));
+        });
+        
+        // Drop zones events
+        this.dropZones.forEach(zone => {
+            zone.addEventListener('dragover', this.handleDragOver.bind(this));
+            zone.addEventListener('dragenter', this.handleDragEnter.bind(this));
+            zone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+            zone.addEventListener('drop', this.handleDrop.bind(this));
+            zone.addEventListener('click', this.handleZoneClick.bind(this));
+        });
+    }
+    
+    initUndo() {
+        this.undoBtn.addEventListener('click', () => {
+            this.undo();
+        });
+    }
+    
+    initCountdown() {
+        const remainingSeconds = parseInt('{{ remaining_seconds }}');
+        if (remainingSeconds > 0) {
+            this.startCountdown(remainingSeconds);
+        }
+    }
+    
+    startCountdown(seconds) {
+        let remaining = seconds;
+        const statCards = document.querySelectorAll('.stat-card');
+        let timeDisplay = null;
+        
+        // Find the time stat card
+        statCards.forEach(card => {
+            const label = card.querySelector('.stat-label');
+            if (label && label.textContent.trim() === 'Time') {
+                timeDisplay = card.querySelector('.stat-value');
+            }
+        });
+        
+        const updateTimer = () => {
+            const minutes = Math.floor(remaining / 60);
+            const secs = remaining % 60;
+            const timeString = `${minutes}:${secs.toString().padStart(2, '0')}`;
+            
+            if (timeDisplay) {
+                timeDisplay.textContent = timeString;
+                
+                // Visual warning when time is low
+                if (remaining <= 30) {
+                    timeDisplay.style.color = 'var(--error)';
+                    timeDisplay.classList.add('pulse');
+                } else if (remaining <= 60) {
+                    timeDisplay.style.color = 'var(--warning)';
+                }
+            }
+            
+            if (remaining <= 0) {
+                // Time's up - stop timer and show warning
+                if (timeDisplay) {
+                    timeDisplay.textContent = "0:00";
+                    timeDisplay.style.color = 'var(--error)';
+                    timeDisplay.classList.add('pulse');
+                }
+                return;
+            }
+            
+            remaining--;
+            setTimeout(updateTimer, 1000);
+        };
+        
+        updateTimer();
+    }
+    
+    saveState() {
+        const state = [];
+        this.dropZones.forEach((zone, index) => {
+            const tile = zone.querySelector('.color-tile');
+            state[index] = tile ? document.getElementById(`color_${index}`).value : null;
+        });
+        
+        this.stateHistory.push([...state]);
+        
+        // Keep history size manageable
+        if (this.stateHistory.length > this.maxHistorySize) {
+            this.stateHistory.shift();
+        }
+        
+        this.updateUndoButton();
+    }
+    
+    undo() {
+        if (this.stateHistory.length <= 1) return; // Can't undo initial state
+        
+        this.stateHistory.pop(); // Remove current state
+        const previousState = this.stateHistory[this.stateHistory.length - 1];
+        
+        // Apply previous state
+        this.dropZones.forEach((zone, index) => {
+            const existingTile = zone.querySelector('.color-tile');
+            if (existingTile) {
+                existingTile.remove();
+                zone.classList.remove('filled');
+            }
+            
+            if (previousState[index]) {
+                this.placeColorInZone(zone, previousState[index], false); // Don't save state
+            }
+        });
+        
+        this.updateUndoButton();
+        this.updateSubmitButton();
+    }
+    
+    updateUndoButton() {
+        this.undoBtn.disabled = this.stateHistory.length <= 1;
+    }
+    
+    handleDragStart(e) {
+        const tile = e.target;
+        const zone = tile.closest('.drop-zone');
+        
+        if (zone) {
+            // Dragging from a drop zone - set up for swapping
+            e.dataTransfer.setData('text/plain', tile.dataset.color || document.getElementById(`color_${zone.dataset.index}`).value);
+            e.dataTransfer.setData('source-zone', zone.dataset.index);
+        } else {
+            // Dragging from palette
+            e.dataTransfer.setData('text/plain', tile.dataset.color);
+        }
+        
+        tile.style.opacity = '0.5';
+        
+        // Highlight drop zones
+        this.dropZones.forEach(zone => zone.classList.add('pulse'));
+    }
+    
+    handleDragEnd(e) {
+        e.target.style.opacity = '1';
+        this.dropZones.forEach(zone => zone.classList.remove('pulse'));
+    }
+    
+    handleDragOver(e) {
+        e.preventDefault();
+    }
+    
+    handleDragEnter(e) {
+        e.preventDefault();
+        const zone = e.target.closest('.drop-zone');
+        if (zone) {
+            zone.classList.add('drag-over');
+        }
+    }
+    
+    handleDragLeave(e) {
+        e.target.classList.remove('drag-over');
+    }
+    
+    handleDrop(e) {
+        e.preventDefault();
+        const zone = e.target.closest('.drop-zone');
+        if (!zone) return;
+        
+        zone.classList.remove('drag-over');
+        
+        const color = e.dataTransfer.getData('text/plain');
+        const sourceZoneIndex = e.dataTransfer.getData('source-zone');
+        
+        if (sourceZoneIndex && sourceZoneIndex !== zone.dataset.index) {
+            // Swapping between zones
+            this.swapZones(sourceZoneIndex, zone.dataset.index);
+        } else {
+            // Placing color in zone
+            this.placeColorInZone(zone, color);
+        }
+    }
+    
+    swapZones(sourceIndex, targetIndex) {
+        const sourceZone = document.querySelector(`[data-index="${sourceIndex}"]`);
+        const targetZone = document.querySelector(`[data-index="${targetIndex}"]`);
+        
+        const sourceColor = document.getElementById(`color_${sourceIndex}`).value;
+        const targetColor = document.getElementById(`color_${targetIndex}`).value;
+        
+        // Clear both zones
+        [sourceZone, targetZone].forEach(zone => {
+            const tile = zone.querySelector('.color-tile');
+            if (tile) {
+                tile.remove();
+                zone.classList.remove('filled');
+            }
+        });
+        
+        // Place colors in swapped positions
+        if (targetColor) {
+            this.placeColorInZone(sourceZone, targetColor, false);
+        }
+        if (sourceColor) {
+            this.placeColorInZone(targetZone, sourceColor, false);
+        }
+        
+        this.saveState();
+        this.updateSubmitButton();
+    }
+    
+    handleZoneClick(e) {
+        const zone = e.target.closest('.drop-zone');
+        const existingTile = zone.querySelector('.color-tile');
+        
+        if (existingTile) {
+            existingTile.remove();
+            zone.classList.remove('filled');
+            
+            const index = zone.dataset.index;
+            document.getElementById(`color_${index}`).value = '';
+            
+            this.saveState();
+            this.updateSubmitButton();
+        }
+    }
+    
+    placeColorInZone(zone, color, saveState = true) {
+        const existing = zone.querySelector('.color-tile');
+        if (existing) existing.remove();
+        
+        const tile = document.createElement('div');
+        tile.className = `color-tile color-${color.toLowerCase()}`;
+        tile.style.cursor = 'pointer';
+        tile.style.transform = 'scale(0.8)';
+        tile.title = `${color} (click to remove)`;
+        tile.draggable = true;
+        
+        // Add drag events to placed tiles
+        tile.addEventListener('dragstart', this.handleDragStart.bind(this));
+        tile.addEventListener('dragend', this.handleDragEnd.bind(this));
+        
+        zone.appendChild(tile);
+        zone.classList.add('filled');
+        
+        const index = zone.dataset.index;
+        document.getElementById(`color_${index}`).value = color;
+        
+        setTimeout(() => {
+            tile.style.transform = 'scale(0.8)';
+            tile.classList.add('animate-scale');
+        }, 50);
+        
+        if (saveState) {
+            this.saveState();
+        }
+        this.updateSubmitButton();
+    }
+    
+    updateSubmitButton() {
+        const filledZones = document.querySelectorAll('.drop-zone.filled').length;
+        this.submitBtn.disabled = filledZones !== 5;
+        
+        if (filledZones === 5) {
+            this.submitBtn.textContent = '🚀 Submit Guess';
+            this.submitBtn.classList.remove('pulse');
+        } else {
+            this.submitBtn.textContent = `🎯 Place ${5 - filledZones} more`;
+            this.submitBtn.classList.add('pulse');
+        }
+    }
+    
+    fillFromPattern(pattern) {
+        const colors = pattern.split(',');
+        
+        // Clear current state
+        this.dropZones.forEach(zone => {
+            const existingTile = zone.querySelector('.color-tile');
+            if (existingTile) {
+                existingTile.remove();
+                zone.classList.remove('filled');
+            }
+        });
+        
+        // Fill with new pattern
+        colors.forEach((color, index) => {
+            const zone = document.querySelector(`[data-index="${index}"]`);
+            if (zone) {
+                this.placeColorInZone(zone, color, false);
+            }
+        });
+        
+        this.saveState();
+        this.updateSubmitButton();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.colorGameInstance = new ColorGuessingGame();
+    
+    setTimeout(() => {
+        document.querySelectorAll('#color-palette .color-tile').forEach((tile, index) => {
+            setTimeout(() => {
+                tile.style.animation = 'slideUp 0.6s ease-out';
+            }, index * 100);
+        });
+    }, 500);
+    
+    // Auto-refresh every 10 seconds to see other players' progress
+    // But preserve the current guess if player is actively building one
+    setInterval(() => {
+        // Check if player has any colors placed in their current guess
+        const filledZones = document.querySelectorAll('.drop-zone.filled').length;
+        
+        if (filledZones === 0) {
+            // No current guess in progress - safe to refresh
+            window.location.reload();
+        } else {
+            // Player is building a guess - skip this refresh to preserve their work
+            console.log('Skipping refresh - player has guess in progress');
+        }
+    }, 10000);
+});
+
+function fillGuessFromHistory(pattern) {
+    if (window.colorGameInstance) {
+        window.colorGameInstance.fillFromPattern(pattern);
+        
+        document.getElementById('drop-zones').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+    }
+}
+</script>
+{% endblock %} 

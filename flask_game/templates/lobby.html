@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 animate-slide-up">
+        <div>
+            <h1>🎮 Game Lobby</h1>
+        </div>
+        
+        <div class="flex gap-4 mt-4 md:mt-0">
+            <a href="{{ url_for('create_game') }}" class="btn btn-success">
+                ⚡ Create Game
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                🏠 Home
+            </a>
+        </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fade-in">
+        <div class="stat-card">
+            <span class="stat-value">{{ public_games|length }}</span>
+            <div class="stat-label">Games</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ total_players }}</span>
+            <div class="stat-label">Players</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ player.total_wins }}</span>
+            <div class="stat-label">Wins</div>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ player.total_losses }}</span>
+            <div class="stat-label">Losses</div>
+        </div>
+    </div>
+    
+    <!-- Invite Code -->
+    <div class="card mb-8 animate-slide-up" style="animation-delay: 0.2s">
+        <h3 class="mb-4">Join by Code</h3>
+        <form class="flex gap-4" onsubmit="joinByCode(event)">
+            <input 
+                type="text" 
+                id="invite-code" 
+                placeholder="6-character code"
+                class="flex-1 px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-muted focus:border-primary focus:outline-none transition-colors"
+                maxlength="6"
+                style="text-transform: uppercase;"
+            >
+            <button type="submit" class="btn btn-primary">
+                🚀 Join
+            </button>
+        </form>
+    </div>
+    
+    <!-- Public Games -->
+    <div class="animate-slide-up" style="animation-delay: 0.4s">
+        <h2 class="mb-6">Public Games</h2>
+        
+        {% if public_games %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for game in public_games %}
+            <div class="card hover:scale-105 transition-transform duration-300">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-1">Game #{{ game.id }}</h3>
+                        <p class="text-text-secondary">{{ game.host.name }}</p>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-1 bg-bg-tertiary rounded-full">
+                        <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                        <span class="text-sm">Waiting</span>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm text-text-secondary">Players</span>
+                        <span class="text-sm font-mono">{{ game.game_players|length }}/{{ game.max_players }}</span>
+                    </div>
+                    
+                    <div class="w-full bg-bg-tertiary rounded-full h-2">
+                        <div 
+                            class="bg-primary h-2 rounded-full transition-all duration-500"
+                            style="width: {{ (game.game_players|length / game.max_players * 100) }}%"
+                        ></div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="flex flex-wrap gap-1">
+                        {% for gp in game.game_players[:4] %}
+                        <span class="px-2 py-1 bg-bg-tertiary rounded text-xs">{{ gp.player.name }}</span>
+                        {% endfor %}
+                        {% if game.game_players|length > 4 %}
+                        <span class="px-2 py-1 bg-bg-tertiary rounded text-xs">+{{ game.game_players|length - 4 }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <a href="{{ url_for('join_game', game_id=game.id) }}" 
+                       class="btn btn-primary flex-1 text-center">
+                        🎯 Join
+                    </a>
+                    {% if game.game_players|length >= game.max_players %}
+                    <div class="btn btn-secondary opacity-50 cursor-not-allowed flex-1 text-center">
+                        🔒 Full
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card text-center py-12">
+            <div class="text-6xl mb-4">🎮</div>
+            <h3 class="mb-4">No Games</h3>
+            <a href="{{ url_for('create_game') }}" class="btn btn-success">
+                🚀 Create First Game
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function joinByCode(event) {
+    event.preventDefault();
+    const code = document.getElementById('invite-code').value.trim().toUpperCase();
+    
+    if (code.length === 6) {
+        window.location.href = `/join/${code}`;
+    } else {
+        alert('Enter 6-character code');
+    }
+}
+
+document.getElementById('invite-code').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+
+setInterval(() => {
+    if (!document.querySelector('.modal:not(.hidden)')) {
+        location.reload();
+    }
+}, 30000);
+</script>
+{% endblock %} 
