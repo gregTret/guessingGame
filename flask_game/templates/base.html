@@ -13,6 +13,9 @@
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.css">
     
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
     <style>
         :root {
             --primary: #6366f1;
@@ -80,6 +83,8 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
+            position: relative;
+            z-index: 1;
         }
         
         .card {
@@ -268,6 +273,8 @@
         .mt-16 { margin-top: 4rem; }
         .pt-28 { padding-top: 7rem; }
         .pt-32 { padding-top: 8rem; }
+        
+
         .p-4 { padding: 1rem; }
         .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
         .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
@@ -393,7 +400,7 @@
             }
             
             .pt-32 {
-                padding-top: 5rem;
+                padding-top: 7rem;
             }
             
             .gap-8 {
@@ -436,6 +443,8 @@
                 width: 100%;
                 text-align: center;
             }
+            
+
         }
         
         @media (max-width: 768px) {
@@ -450,6 +459,8 @@
             .card {
                 padding: 1.5rem;
             }
+            
+
             
             .md\:grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
             .md\:grid-cols-3 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
@@ -479,7 +490,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="animate-fade-in">
-    <nav class="glass fixed top-0 left-0 right-0 z-50 border-b border-border">
+    <nav class="glass border-b border-border">
         <div class="container">
             <div class="flex items-center justify-between py-3">
                 <a href="{{ url_for('index') }}" class="text-2xl font-bold text-gradient">
@@ -497,7 +508,7 @@
         </div>
     </nav>
     
-    <main class="pt-32">
+    <main>
         {% block content %}{% endblock %}
     </main>
     

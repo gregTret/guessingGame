@@ -144,10 +144,36 @@ document.getElementById('invite-code').addEventListener('input', function(e) {
     e.target.value = e.target.value.toUpperCase();
 });
 
-setInterval(() => {
-    if (!document.querySelector('.modal:not(.hidden)')) {
-        location.reload();
+// Initialize Socket.IO for lobby
+const socket = io();
+
+socket.on('connect', () => {
+    console.log('Connected to lobby');
+    socket.emit('join_lobby');
+});
+
+socket.on('lobby_updated', (data) => {
+    // Update game count
+    const gameCountElement = document.querySelector('.stat-card .stat-value');
+    if (gameCountElement) {
+        gameCountElement.textContent = data.public_games_count;
     }
-}, 30000);
+    
+    // Update total players count
+    const playerCountElements = document.querySelectorAll('.stat-card .stat-value');
+    if (playerCountElements[1]) {
+        playerCountElements[1].textContent = data.total_players;
+    }
+    
+    // Update games list (for now, we'll keep the simple refresh approach)
+    // In a full implementation, we would dynamically update individual game cards
+    console.log('Lobby data updated:', data);
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from lobby');
+});
+
+// Removed auto-refresh - now using WebSocket events
 </script>
 {% endblock %} 

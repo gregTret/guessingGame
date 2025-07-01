@@ -27,6 +27,31 @@
         border-color: rgba(255, 255, 255, 0.3);
     }
     
+    /* Double-click hint for palette tiles */
+    #color-palette .color-tile {
+        position: relative;
+    }
+    
+    #color-palette .color-tile::after {
+        content: '2x';
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: rgba(255, 255, 255, 0.9);
+        color: #333;
+        font-size: 8px;
+        font-weight: bold;
+        padding: 1px 3px;
+        border-radius: 3px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+    
+    #color-palette .color-tile:hover::after {
+        opacity: 1;
+    }
+    
     /* Color definitions */
     .color-black { background: linear-gradient(135deg, #1a1a1a, #000000); }
     .color-white { background: linear-gradient(135deg, #ffffff, #f0f0f0); }
@@ -315,7 +340,7 @@
         <div class="card animate-slide-up">
             <h1>🎯 Crack the Pattern</h1>
             
-            {% if not spectate_mode and game_player.status == 'playing' %}
+            {% if not spectate_mode and game_player.status in ['playing', 'waiting'] %}
             <!-- Current Guess Builder -->
             <div class="mb-8">
                 <div class="flex items-center justify-between mb-4">
@@ -381,7 +406,7 @@
             {% endif %}
         </div>
         
-        {% if not spectate_mode and game_player.status == 'playing' %}
+        {% if not spectate_mode and game_player.status in ['playing', 'waiting'] %}
         <!-- Color Palette Sidebar -->
         <div class="card animate-slide-up">
             <h3 class="mb-4">🎨 Colors</h3>
@@ -399,6 +424,7 @@
                 <ul class="text-sm text-text-secondary space-y-1">
                     <li>✓ = Correct position</li>
                     <li>○ = Wrong position</li>
+                    <li>Double-click = Quick place</li>
                 </ul>
             </div>
             
@@ -469,6 +495,7 @@ class ColorGuessingGame {
         this.colorTiles.forEach(tile => {
             tile.addEventListener('dragstart', this.handleDragStart.bind(this));
             tile.addEventListener('dragend', this.handleDragEnd.bind(this));
+            tile.addEventListener('dblclick', this.handleColorDoubleClick.bind(this));
         });
         
         // Drop zones events
@@ -583,6 +610,33 @@ class ColorGuessingGame {
     
     updateUndoButton() {
         this.undoBtn.disabled = this.stateHistory.length <= 1;
+    }
+    
+    handleColorDoubleClick(e) {
+        const tile = e.target.closest('.color-tile');
+        if (!tile || !tile.dataset.color) return;
+        
+        // Only work with palette tiles (not placed tiles)
+        if (tile.closest('.drop-zone')) return;
+        
+        const color = tile.dataset.color;
+        const filledZones = document.querySelectorAll('.drop-zone.filled').length;
+        
+        // Only auto-place if we have less than 5 colors
+        if (filledZones >= 5) return;
+        
+        // Find the first empty drop zone
+        const emptyZone = Array.from(this.dropZones).find(zone => !zone.classList.contains('filled'));
+        
+        if (emptyZone) {
+            this.placeColorInZone(emptyZone, color);
+            
+            // Add a subtle visual feedback
+            tile.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+                tile.style.transform = '';
+            }, 150);
+        }
     }
     
     handleDragStart(e) {
@@ -758,6 +812,40 @@ class ColorGuessingGame {
     }
 }
 
+// Initialize Socket.IO for game room
+const socket = io();
+const gameId = parseInt('{{ game.id }}');
+
+// Socket event handlers
+socket.on('connect', () => {
+    console.log('Connected to game room');
+    socket.emit('join_game_room', { game_id: gameId });
+});
+
+socket.on('player_made_guess', (data) => {
+    // Update active player count without full refresh
+    const activePlayersElement = document.querySelector('.stat-value');
+    if (activePlayersElement && activePlayersElement.parentElement.querySelector('.stat-label').textContent === 'Active') {
+        activePlayersElement.textContent = data.active_players;
+    }
+    
+    // Show subtle notification that someone made a guess
+    console.log(`${data.player_name} made a guess`);
+});
+
+socket.on('game_state_updated', (data) => {
+    // Update game stats without refresh
+    const activePlayersElement = document.querySelector('.stat-value');
+    if (activePlayersElement && activePlayersElement.parentElement.querySelector('.stat-label').textContent === 'Active') {
+        activePlayersElement.textContent = data.active_players;
+    }
+});
+
+socket.on('game_completed', (data) => {
+    // Game finished - redirect to results
+    window.location.reload();
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     window.colorGameInstance = new ColorGuessingGame();
     
@@ -769,20 +857,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }, 500);
     
-    // Auto-refresh every 10 seconds to see other players' progress
-    // But preserve the current guess if player is actively building one
-    setInterval(() => {
-        // Check if player has any colors placed in their current guess
-        const filledZones = document.querySelectorAll('.drop-zone.filled').length;
-        
-        if (filledZones === 0) {
-            // No current guess in progress - safe to refresh
-            window.location.reload();
-        } else {
-            // Player is building a guess - skip this refresh to preserve their work
-            console.log('Skipping refresh - player has guess in progress');
-        }
-    }, 10000);
+    // Removed auto-refresh - now using WebSocket events for real-time updates
+});
+
+// Enhanced guess submission to notify other players
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('guess-form');
+    if (form) {
+        form.addEventListener('submit', () => {
+            // Emit socket event when guess is submitted
+            socket.emit('guess_submitted_socket', { game_id: gameId });
+        });
+    }
 });
 
 function fillGuessFromHistory(pattern) {

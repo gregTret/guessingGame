@@ -155,11 +155,89 @@ function copyInviteLink() {
     document.execCommand('copy');
 }
 
+// Initialize Socket.IO
+const socket = io();
+const gameId = parseInt('{{ game.id }}');
+const currentPlayerId = parseInt('{{ player.id }}');
+
 function startGame() {
-    window.location.href = "{{ url_for('start_game', game_id=game.id) }}";
+    // Emit socket event instead of HTTP request
+    socket.emit('start_game_socket', { game_id: gameId });
 }
 
-// Set progress bar width on page load
+function updateProgressBar(playerCount, maxPlayers) {
+    const progressBar = document.getElementById('progress-bar');
+    if (progressBar) {
+        const percentage = Math.round((playerCount / maxPlayers) * 100);
+        progressBar.style.width = percentage + '%';
+        
+        // Update player count text
+        const countText = document.querySelector('.text-sm.text-text-secondary');
+        if (countText) {
+            countText.textContent = `${playerCount}/${maxPlayers} players`;
+        }
+    }
+}
+
+function updatePlayerList(data) {
+    const playersContainer = document.querySelector('.grid.grid-cols-1.md\\:grid-cols-2');
+    if (!playersContainer) return;
+    
+    // Clear existing players (except empty slots)
+    const playerCards = playersContainer.querySelectorAll('.flex.items-center.gap-4.p-6.bg-bg-tertiary');
+    playerCards.forEach(card => card.remove());
+    
+    // Add updated players
+    data.players.forEach(player => {
+        const playerCard = document.createElement('div');
+        playerCard.className = 'flex items-center gap-4 p-6 bg-bg-tertiary rounded-lg transition-all hover:bg-bg-secondary border-2 border-transparent hover:border-primary';
+        
+        const hostBadge = player.is_host ? '<span class="px-2 py-1 bg-primary text-white text-xs rounded-full">HOST</span>' : '';
+        const stats = (player.total_wins + player.total_losses > 0) ? 
+            `${player.total_wins}W / ${player.total_losses}L` : 'New Player';
+        
+        const kickButton = player.is_host || player.id === currentPlayerId ? '' : 
+            `<a href="/kick_player/${gameId}/${player.id}" class="btn btn-error px-3 py-1 text-sm">🚫 Kick</a>`;
+        
+        playerCard.innerHTML = `
+            <div class="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-white font-bold text-xl">
+                ${player.name[0].toUpperCase()}
+            </div>
+            <div class="flex-1">
+                <div class="font-semibold text-lg flex items-center gap-2 mb-1">
+                    ${player.name}
+                    ${hostBadge}
+                </div>
+                <div class="text-sm text-text-secondary">${stats}</div>
+                ${kickButton ? `<div class="mt-2">${kickButton}</div>` : ''}
+            </div>
+        `;
+        
+        playersContainer.insertBefore(playerCard, playersContainer.firstChild);
+    });
+    
+    updateProgressBar(data.player_count, data.max_players);
+}
+
+// Socket event handlers
+socket.on('connect', () => {
+    console.log('Connected to server');
+    socket.emit('join_waiting_room', { game_id: gameId });
+});
+
+socket.on('player_list_updated', (data) => {
+    updatePlayerList(data);
+});
+
+socket.on('game_started', (data) => {
+    window.location.href = `/game/${data.game_id}`;
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+});
+
+// Set initial progress bar width on page load
 document.addEventListener('DOMContentLoaded', () => {
     const progressBar = document.getElementById('progress-bar');
     if (progressBar) {
@@ -170,9 +248,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Auto-refresh waiting room every 5 seconds to check for game start and new players
-setInterval(() => {
-    window.location.reload();
-}, 5000);
+// Clean up on page unload
+window.addEventListener('beforeunload', () => {
+    socket.emit('leave_waiting_room', { game_id: gameId });
+});
 </script>
 {% endblock %} 
