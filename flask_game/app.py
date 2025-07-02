@@ -144,7 +144,7 @@ def join_by_invite(invite_code):
     
     invite = GameInvite.query.filter_by(invite_code=invite_code).first()
     if not invite or invite.expires_at:
-        return "Invalid or expired invite code", 404
+        return redirect(url_for('lobby'))
     
     return redirect(url_for('join_game', game_id=invite.game_id))
 
@@ -160,7 +160,7 @@ def join_game(game_id):
     
     # Check if game is still waiting
     if game.status != 'waiting':
-        return "Game has already started or ended", 400
+        return redirect(url_for('lobby'))
     
     # Check if player already in game
     existing = GamePlayer.query.filter_by(game_id=game_id, player_id=player.id).first()
@@ -170,7 +170,7 @@ def join_game(game_id):
     # Check if game is full
     current_players = GamePlayer.query.filter_by(game_id=game_id).count()
     if current_players >= game.max_players:
-        return "Game is full", 400
+        return redirect(url_for('lobby'))
     
     # Add player to game
     game_player = GamePlayer(game_id=game_id, player_id=player.id)
@@ -207,7 +207,7 @@ def game_room(game_id):
     game_player = GamePlayer.query.filter_by(game_id=game_id, player_id=player.id).first()
     
     if not game_player:
-        return "You are not in this game", 403
+        return redirect(url_for('lobby'))
     
     if game.status == 'waiting':
         return render_waiting_room(game, player)
@@ -271,7 +271,7 @@ def forfeit_game(game_id):
     game_player = GamePlayer.query.filter_by(game_id=game_id, player_id=player.id).first()
     
     if not game_player:
-        return "You are not in this game", 403
+        return redirect(url_for('lobby'))
     
     if game.status == 'active' and game_player.status == 'playing':
         # Mark as forfeited and add loss
