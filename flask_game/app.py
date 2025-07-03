@@ -492,26 +492,32 @@ def check_game_completion(game_id):
                 # Player hasn't made a guess yet or is waiting - still playing
                 players_still_playing += 1
     
-    # Game is complete only when NO players are still actively playing
-    if players_still_playing == 0:
-        game.status = 'completed'
-        game.completed_at = datetime.utcnow()
-        
-        # Determine winner: player who solved with fewest guesses
-        solved_players = [gp for gp in all_players if gp.status == 'solved']
-        if solved_players:
-            # Find player with minimum guess count among those who solved
-            winner_gp = min(solved_players, key=lambda gp: gp.guess_count)
-            game.winner_id = winner_gp.player_id
+            # Game is complete only when NO players are still actively playing
+        if players_still_playing == 0:
+            game.status = 'completed'
+            game.completed_at = datetime.utcnow()
             
-            # Award win to the winner
-            winner = Player.query.get(winner_gp.player_id)
-            winner.total_wins += 1
+            # Determine winner: player who solved with fewest guesses
+            solved_players = [gp for gp in all_players if gp.status == 'solved']
+            if solved_players:
+                # Find player with minimum guess count among those who solved
+                winner_gp = min(solved_players, key=lambda gp: gp.guess_count)
+                game.winner_id = winner_gp.player_id
+                
+                # Award win to the winner
+                winner = Player.query.get(winner_gp.player_id)
+                winner.total_wins += 1
+                
+                # Note: Players who forfeited already got losses when they forfeited
+                # Players who solved but didn't win don't get losses
             
-            # Note: Players who forfeited already got losses when they forfeited
-            # Players who solved but didn't win don't get losses
-        
-        db.session.commit()
+            db.session.commit()
+            
+            # Notify all players in the game that it has completed
+            socketio.emit('game_completed', {
+                'game_id': game_id,
+                'winner_name': winner.name if solved_players else None
+            }, room=f"game_{game_id}")
 
 def render_game_results(game, player):
     players = GamePlayer.query.filter_by(game_id=game.id).join(Player).all()
