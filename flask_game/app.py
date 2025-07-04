@@ -352,8 +352,9 @@ def render_game_play(game, player, game_player, spectate_mode=False):
             if game.status == 'completed':
                 return render_game_results(game, player)
             
-            # For hosts who finish but game isn't complete yet, show different options
-            is_host = game.host_player_id == player.id
+            # Players who have solved must wait for the game to complete before viewing leaderboard
+            # Count remaining active players
+            active_players = GamePlayer.query.filter_by(game_id=game.id).filter(GamePlayer.status.in_(['playing', 'waiting'])).count()
             
             return render_template_string('''
             {% extends "base.html" %}
@@ -364,20 +365,31 @@ def render_game_play(game, player, game_player, spectate_mode=False):
                     <h1>✅ Solved!</h1>
                     <p class="text-xl text-text-secondary mb-4">You cracked the pattern!</p>
                     <div class="text-3xl font-bold text-success mb-6">{{ game_player.guess_count }} guesses</div>
-                    <p class="text-text-secondary mb-6">Other players can continue guessing until they solve it or forfeit</p>
-                    <div class="flex gap-4 justify-center">
-                        <a href="{{ url_for('view_guesses', game_id=game.id) }}" class="btn btn-secondary">View Guesses</a>
-                        {% if is_host %}
-                        <button onclick="if(confirm('End game for all players?')) window.location.href='{{ url_for('lobby') }}'" class="btn btn-warning">🏁 End Game</button>
+                    <p class="text-text-secondary mb-4">
+                        {% if active_players > 0 %}
+                        Waiting for {{ active_players }} other player{{ 's' if active_players != 1 else '' }} to finish...
                         {% else %}
-                        <a href="{{ url_for('game_room', game_id=game.id) }}?spectate=true" class="btn btn-secondary">👀 Watch Game</a>
+                        All players have finished - preparing leaderboard...
                         {% endif %}
-                        <a href="{{ url_for('lobby') }}" class="btn btn-primary">Back to Lobby</a>
+                    </p>
+                    <p class="text-sm text-text-secondary mb-6">You must wait for all players to complete the game before viewing the final leaderboard.</p>
+                    <div class="flex gap-4 justify-center">
+                        <a href="{{ url_for('view_guesses', game_id=game.id) }}" class="btn btn-secondary">View Your Guesses</a>
+                        <button onclick="location.reload()" class="btn btn-primary">🔄 Refresh</button>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-xs text-text-secondary">This page will automatically refresh when the game ends.</p>
                     </div>
                 </div>
             </div>
+            <script>
+                // Auto-refresh every 3 seconds to check if game is complete
+                setTimeout(function() {
+                    location.reload();
+                }, 3000);
+            </script>
             {% endblock %}
-            ''', game=game, game_player=game_player, is_host=is_host)
+            ''', game=game, game_player=game_player, active_players=active_players)
     
     # Get player's guesses
     guesses = Guess.query.filter_by(game_id=game.id, player_id=player.id).order_by(Guess.guess_number.desc()).all()
@@ -492,32 +504,35 @@ def check_game_completion(game_id):
                 # Player hasn't made a guess yet or is waiting - still playing
                 players_still_playing += 1
     
-            # Game is complete only when NO players are still actively playing
-        if players_still_playing == 0:
-            game.status = 'completed'
-            game.completed_at = datetime.utcnow()
+    # Game is complete only when NO players are still actively playing
+    if players_still_playing == 0:
+        game.status = 'completed'
+        game.completed_at = datetime.utcnow()
+        
+        # Determine winner: player who solved with fewest guesses
+        solved_players = [gp for gp in all_players if gp.status == 'solved']
+        if solved_players:
+            # Find player with minimum guess count among those who solved
+            winner_gp = min(solved_players, key=lambda gp: gp.guess_count)
+            game.winner_id = winner_gp.player_id
             
-            # Determine winner: player who solved with fewest guesses
-            solved_players = [gp for gp in all_players if gp.status == 'solved']
-            if solved_players:
-                # Find player with minimum guess count among those who solved
-                winner_gp = min(solved_players, key=lambda gp: gp.guess_count)
-                game.winner_id = winner_gp.player_id
-                
-                # Award win to the winner
-                winner = Player.query.get(winner_gp.player_id)
-                winner.total_wins += 1
-                
-                # Note: Players who forfeited already got losses when they forfeited
-                # Players who solved but didn't win don't get losses
+            # Award win to the winner
+            winner = Player.query.get(winner_gp.player_id)
+            winner.total_wins += 1
             
-            db.session.commit()
-            
-            # Notify all players in the game that it has completed
-            socketio.emit('game_completed', {
-                'game_id': game_id,
-                'winner_name': winner.name if solved_players else None
-            }, room=f"game_{game_id}")
+            # Note: Players who forfeited already got losses when they forfeited
+            # Players who solved but didn't win don't get losses
+        
+        db.session.commit()
+        
+        # Notify all players in the game that it has completed
+        socketio.emit('game_completed', {
+            'game_id': game_id,
+            'winner_name': winner.name if solved_players else None
+        }, room=f"game_{game_id}")
+        
+        # Broadcast lobby update since game is no longer waiting
+        broadcast_lobby_update()
 
 def render_game_results(game, player):
     players = GamePlayer.query.filter_by(game_id=game.id).join(Player).all()
@@ -618,6 +633,9 @@ def handle_start_game_socket(data):
     emit('game_started', {
         'game_id': game_id
     }, room=f"game_{game_id}")
+    
+    # Broadcast lobby update since game is no longer waiting
+    broadcast_lobby_update()
 
 @socketio.on('join_game_room')
 def handle_join_game_room(data):
@@ -658,13 +676,32 @@ def handle_guess_submitted_socket(data):
 def handle_join_lobby():
     join_room('lobby')
     
-    # Send current lobby stats
+    # Send current lobby stats and games data
     public_games = Game.query.filter_by(status='waiting', invite_only=False).all()
     total_players = GamePlayer.query.join(Game).filter(Game.status == 'waiting').count()
     
+    # Serialize game data for real-time updates
+    games_data = []
+    for game in public_games:
+        game_players = GamePlayer.query.filter_by(game_id=game.id).join(Player).all()
+        players_data = [{
+            'name': gp.player.name,
+            'id': gp.player.id
+        } for gp in game_players]
+        
+        games_data.append({
+            'id': game.id,
+            'host_name': game.host.name,
+            'player_count': len(game_players),
+            'max_players': game.max_players,
+            'players': players_data,
+            'is_full': len(game_players) >= game.max_players
+        })
+    
     emit('lobby_updated', {
         'public_games_count': len(public_games),
-        'total_players': total_players
+        'total_players': total_players,
+        'games': games_data
     })
 
 def broadcast_lobby_update():
@@ -672,9 +709,28 @@ def broadcast_lobby_update():
     public_games = Game.query.filter_by(status='waiting', invite_only=False).all()
     total_players = GamePlayer.query.join(Game).filter(Game.status == 'waiting').count()
     
+    # Serialize game data for real-time updates
+    games_data = []
+    for game in public_games:
+        game_players = GamePlayer.query.filter_by(game_id=game.id).join(Player).all()
+        players_data = [{
+            'name': gp.player.name,
+            'id': gp.player.id
+        } for gp in game_players]
+        
+        games_data.append({
+            'id': game.id,
+            'host_name': game.host.name,
+            'player_count': len(game_players),
+            'max_players': game.max_players,
+            'players': players_data,
+            'is_full': len(game_players) >= game.max_players
+        })
+    
     socketio.emit('lobby_updated', {
         'public_games_count': len(public_games),
-        'total_players': total_players
+        'total_players': total_players,
+        'games': games_data
     }, room='lobby')
 
 if __name__ == '__main__':

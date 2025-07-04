@@ -60,69 +60,71 @@
     <div class="animate-slide-up" style="animation-delay: 0.4s">
         <h2 class="mb-6">Public Games</h2>
         
-        {% if public_games %}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {% for game in public_games %}
-            <div class="card hover:scale-105 transition-transform duration-300">
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-semibold mb-1">Game #{{ game.id }}</h3>
-                        <p class="text-text-secondary">{{ game.host.name }}</p>
-                    </div>
-                    <div class="flex items-center gap-2 px-3 py-1 bg-bg-tertiary rounded-full">
-                        <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                        <span class="text-sm">Waiting</span>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-sm text-text-secondary">Players</span>
-                        <span class="text-sm font-mono">{{ game.game_players|length }}/{{ game.max_players }}</span>
+        <div id="games-container">
+            {% if public_games %}
+            <div id="games-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for game in public_games %}
+                <div class="card hover:scale-105 transition-transform duration-300">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-1">Game #{{ game.id }}</h3>
+                            <p class="text-text-secondary">{{ game.host.name }}</p>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1 bg-bg-tertiary rounded-full">
+                            <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                            <span class="text-sm">Waiting</span>
+                        </div>
                     </div>
                     
-                    <div class="w-full bg-bg-tertiary rounded-full h-2">
-                        <div 
-                            class="bg-primary h-2 rounded-full transition-all duration-500"
-                            style="width: {{ (game.game_players|length / game.max_players * 100) }}%"
-                        ></div>
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-text-secondary">Players</span>
+                            <span class="text-sm font-mono">{{ game.game_players|length }}/{{ game.max_players }}</span>
+                        </div>
+                        
+                        <div class="w-full bg-bg-tertiary rounded-full h-2">
+                            <div 
+                                class="bg-primary h-2 rounded-full transition-all duration-500"
+                                style="width: {{ (game.game_players|length / game.max_players * 100) }}%"
+                            ></div>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="mb-4">
-                    <div class="flex flex-wrap gap-1">
-                        {% for gp in game.game_players[:4] %}
-                        <span class="px-2 py-1 bg-bg-tertiary rounded text-xs">{{ gp.player.name }}</span>
-                        {% endfor %}
-                        {% if game.game_players|length > 4 %}
-                        <span class="px-2 py-1 bg-bg-tertiary rounded text-xs">+{{ game.game_players|length - 4 }}</span>
+                    
+                    <div class="mb-4">
+                        <div class="flex flex-wrap gap-1">
+                            {% for gp in game.game_players[:4] %}
+                            <span class="px-2 py-1 bg-bg-tertiary rounded text-xs">{{ gp.player.name }}</span>
+                            {% endfor %}
+                            {% if game.game_players|length > 4 %}
+                            <span class="px-2 py-1 bg-bg-tertiary rounded text-xs">+{{ game.game_players|length - 4 }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <a href="{{ url_for('join_game', game_id=game.id) }}" 
+                           class="btn btn-primary flex-1 text-center">
+                            🎯 Join
+                        </a>
+                        {% if game.game_players|length >= game.max_players %}
+                        <div class="btn btn-secondary opacity-50 cursor-not-allowed flex-1 text-center">
+                            🔒 Full
+                        </div>
                         {% endif %}
                     </div>
                 </div>
-                
-                <div class="flex gap-2">
-                    <a href="{{ url_for('join_game', game_id=game.id) }}" 
-                       class="btn btn-primary flex-1 text-center">
-                        🎯 Join
-                    </a>
-                    {% if game.game_players|length >= game.max_players %}
-                    <div class="btn btn-secondary opacity-50 cursor-not-allowed flex-1 text-center">
-                        🔒 Full
-                    </div>
-                    {% endif %}
-                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+            {% else %}
+            <div id="no-games" class="card text-center py-12">
+                <div class="text-6xl mb-4">🎮</div>
+                <h3 class="mb-4">No Games</h3>
+                <a href="{{ url_for('create_game') }}" class="btn btn-success">
+                    🚀 Create First Game
+                </a>
+            </div>
+            {% endif %}
         </div>
-        {% else %}
-        <div class="card text-center py-12">
-            <div class="text-6xl mb-4">🎮</div>
-            <h3 class="mb-4">No Games</h3>
-            <a href="{{ url_for('create_game') }}" class="btn btn-success">
-                🚀 Create First Game
-            </a>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -165,10 +167,87 @@ socket.on('lobby_updated', (data) => {
         playerCountElements[1].textContent = data.total_players;
     }
     
-    // Update games list (for now, we'll keep the simple refresh approach)
-    // In a full implementation, we would dynamically update individual game cards
+    // Update games list dynamically
+    updateGamesList(data.games);
     console.log('Lobby data updated:', data);
 });
+
+function updateGamesList(games) {
+    const gamesContainer = document.getElementById('games-container');
+    
+    if (games.length === 0) {
+        // Show no games message
+        gamesContainer.innerHTML = `
+            <div id="no-games" class="card text-center py-12">
+                <div class="text-6xl mb-4">🎮</div>
+                <h3 class="mb-4">No Games</h3>
+                <a href="/create_game" class="btn btn-success">
+                    🚀 Create First Game
+                </a>
+            </div>
+        `;
+    } else {
+        // Create games grid
+        let gamesHtml = '<div id="games-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
+        
+        games.forEach(game => {
+            const playerPercentage = (game.player_count / game.max_players) * 100;
+            const playersHtml = game.players.slice(0, 4).map(player => 
+                `<span class="px-2 py-1 bg-bg-tertiary rounded text-xs">${player.name}</span>`
+            ).join('');
+            
+            const extraPlayersHtml = game.players.length > 4 ? 
+                `<span class="px-2 py-1 bg-bg-tertiary rounded text-xs">+${game.players.length - 4}</span>` : '';
+            
+            const joinButtonHtml = game.is_full ? 
+                `<div class="btn btn-secondary opacity-50 cursor-not-allowed flex-1 text-center">🔒 Full</div>` :
+                `<a href="/join_game/${game.id}" class="btn btn-primary flex-1 text-center">🎯 Join</a>`;
+            
+            gamesHtml += `
+                <div class="card hover:scale-105 transition-transform duration-300">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold mb-1">Game #${game.id}</h3>
+                            <p class="text-text-secondary">${game.host_name}</p>
+                        </div>
+                        <div class="flex items-center gap-2 px-3 py-1 bg-bg-tertiary rounded-full">
+                            <div class="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                            <span class="text-sm">Waiting</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-text-secondary">Players</span>
+                            <span class="text-sm font-mono">${game.player_count}/${game.max_players}</span>
+                        </div>
+                        
+                        <div class="w-full bg-bg-tertiary rounded-full h-2">
+                            <div 
+                                class="bg-primary h-2 rounded-full transition-all duration-500"
+                                style="width: ${playerPercentage}%"
+                            ></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex flex-wrap gap-1">
+                            ${playersHtml}
+                            ${extraPlayersHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        ${joinButtonHtml}
+                    </div>
+                </div>
+            `;
+        });
+        
+        gamesHtml += '</div>';
+        gamesContainer.innerHTML = gamesHtml;
+    }
+}
 
 socket.on('disconnect', () => {
     console.log('Disconnected from lobby');
