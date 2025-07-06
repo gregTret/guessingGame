@@ -1,0 +1,14 @@
+# Production WSGI requirements
+# Base requirements (should match requirements.txt)
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+Flask-SQLAlchemy==3.0.5
+python-dotenv==1.0.0
+
+# WSGI server dependencies
+gunicorn==21.2.0
+eventlet==0.33.3
+
+# Additional production dependencies
+python-socketio==5.8.0
+python-engineio==4.7.1 

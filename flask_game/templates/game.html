@@ -192,6 +192,20 @@
         50% { opacity: 0.7; }
     }
     
+    /* Color palette default layout */
+    #color-palette {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* Color palette responsive visibility */
+    .mobile-colors-card {
+        display: none;
+    }
+    
+    .desktop-colors-card {
+        display: block;
+    }
+    
     /* Responsive grid */
     .game-board {
         display: grid;
@@ -207,9 +221,22 @@
         }
     }
     
+    /* Tablet responsive design */
+    @media (max-width: 768px) and (min-width: 641px) {
+        #color-palette {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+        
+        .color-tile {
+            width: 65px;
+            height: 65px;
+        }
+    }
+    
     /* Mobile responsive design */
     @media (max-width: 640px) {
-        .game-board {
+         .game-board {
             gap: 1rem;
         }
         
@@ -227,8 +254,8 @@
         }
         
         .color-tile {
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
         }
         
         .drop-zone {
@@ -243,8 +270,18 @@
         }
         
         #color-palette {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 0.5rem !important;
+            display: grid !important;
+        }
+        
+        /* Show mobile colors, hide desktop colors */
+        .mobile-colors-card {
+            display: block !important;
+        }
+        
+        .desktop-colors-card {
+            display: none !important;
         }
         
         .guess-row {
@@ -285,6 +322,20 @@
             padding: 0.5rem 0.75rem;
             font-size: 0.75rem;
             min-height: 36px;
+        }
+    }
+    
+    /* iPhone 12 and similar screen sizes */
+    @media (max-width: 430px) {
+        #color-palette {
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 0.4rem !important;
+            display: grid !important;
+        }
+        
+        .color-tile {
+            width: 45px;
+            height: 45px;
         }
     }
     
@@ -336,6 +387,30 @@
     </div>
 
     <div class="game-board">
+        {% if not spectate_mode and game_player.status in ['playing', 'waiting'] %}
+        <!-- Color Palette (Mobile First) -->
+        <div class="card animate-slide-up mobile-colors-card">
+            <h3 class="mb-4">🎨 Colors</h3>
+            <div class="grid grid-cols-4 sm:grid-cols-3 md:grid-cols-2 gap-2 sm:gap-3" id="color-palette">
+                {% for color in ['Black', 'White', 'Yellow', 'Red', 'Green', 'Blue', 'Pink'] %}
+                <div class="color-tile color-{{ color.lower() }}" 
+                     draggable="true" 
+                     data-color="{{ color }}"
+                     title="{{ color }}">
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="mt-6 p-4 bg-bg-tertiary rounded-lg">
+                <ul class="text-sm text-text-secondary space-y-1">
+                    <li>✓ = Correct position</li>
+                    <li>○ = Wrong position</li>
+                    <li>Double-click = Quick place</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        
         <!-- Main Game Area -->
         <div class="card animate-slide-up">
             <h1>🎯 Crack the Pattern</h1>
@@ -407,10 +482,10 @@
         </div>
         
         {% if not spectate_mode and game_player.status in ['playing', 'waiting'] %}
-        <!-- Color Palette Sidebar -->
-        <div class="card animate-slide-up">
+        <!-- Color Palette Sidebar (Desktop) -->
+        <div class="card animate-slide-up desktop-colors-card">
             <h3 class="mb-4">🎨 Colors</h3>
-            <div class="grid grid-cols-2 gap-3" id="color-palette">
+            <div class="grid grid-cols-2 gap-3" id="color-palette-desktop">
                 {% for color in ['Black', 'White', 'Yellow', 'Red', 'Green', 'Blue', 'Pink'] %}
                 <div class="color-tile color-{{ color.lower() }}" 
                      draggable="true" 
@@ -426,12 +501,6 @@
                     <li>○ = Wrong position</li>
                     <li>Double-click = Quick place</li>
                 </ul>
-            </div>
-            
-            <div class="mt-4">
-                <a href="{{ url_for('forfeit_game', game_id=game.id) }}" class="btn btn-error w-full">
-                    🏃‍♂️ Forfeit
-                </a>
             </div>
         </div>
         {% else %}
@@ -466,6 +535,15 @@
         </div>
         {% endif %}
     </div>
+    
+    {% if not spectate_mode and game_player.status in ['playing', 'waiting'] %}
+    <!-- Forfeit Button (Bottom of Page) -->
+    <div class="mt-6 text-center">
+        <button onclick="confirmForfeit()" class="btn btn-error">
+            🏃‍♂️ Forfeit Game
+        </button>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -879,6 +957,13 @@ function fillGuessFromHistory(pattern) {
             behavior: 'smooth', 
             block: 'center' 
         });
+    }
+}
+
+// Forfeit confirmation function
+function confirmForfeit() {
+    if (confirm('Are you sure you want to forfeit this game? This action cannot be undone and will count as a loss.')) {
+        window.location.href = '{{ url_for("forfeit_game", game_id=game.id) }}';
     }
 }
 </script>

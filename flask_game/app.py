@@ -733,7 +733,8 @@ def broadcast_lobby_update():
         'games': games_data
     }, room='lobby')
 
-if __name__ == '__main__':
+def init_app():
+    """Initialize the application for production or development"""
     # Check if SECRET_KEY is set
     if not app.config['SECRET_KEY']:
         print("Error: SECRET_KEY environment variable not set!")
@@ -744,5 +745,14 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         print("Database tables created successfully!")
+
+if __name__ == '__main__':
+    # Initialize app for direct execution
+    init_app()
     
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True) 
+    # Get port from environment variable or use default
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('DEBUG', 'True').lower() == 'true'
+    
+    print(f"Starting Flask app on port {port} (debug={debug})")
+    socketio.run(app, debug=debug, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True) 
